@@ -11,16 +11,16 @@ from google.auth.transport.requests import Request
 
 # =================== CONFIG ===================
 
-installed = st.secrets["client_secret"]["installed"]
+web = st.secrets["client_secret"]["web"]
 
 client_secret_clean = {
     "installed": {
-        "client_id": installed["client_id"],
-        "project_id": installed["project_id"],
-        "auth_uri": installed["auth_uri"],
-        "token_uri": installed["token_uri"],
-        "auth_provider_x509_cert_url": installed["auth_provider_x509_cert_url"],
-        "client_secret": installed["client_secret"],
+        "client_id": web["client_id"],
+        "project_id": web["project_id"],
+        "auth_uri": web["auth_uri"],
+        "token_uri": web["token_uri"],
+        "auth_provider_x509_cert_url": web["auth_provider_x509_cert_url"],
+        "client_secret": web["client_secret"],
         "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob"],
     }
 }
