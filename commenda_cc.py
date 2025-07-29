@@ -12,7 +12,7 @@ from googleapiclient.errors import HttpError
 
 # ================== CONFIG ===================
 with open("client_secret.json", "w") as f:
-    json.dump(dict(st.secrets["client_secret"]), f)
+    json.dump(st.secrets["client_secret"]["installed"], f)
 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
 GEMINI_API_KEY = "AIzaSyA1bVAA7lBlc2Zs350--ZZ_FcTuuEdw2X4"  # Replace with your actual key
