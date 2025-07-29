@@ -3,14 +3,15 @@ import datetime
 import pickle
 import os
 import json
-import google.generativeai as genai
 import pandas as pd
-from google_auth_oauthlib.flow import Flow
+import google.generativeai as genai
+from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 from googleapiclient.errors import HttpError
 
-# ================== CONFIG ===================
+# ============ CONFIG ============
+
 installed = st.secrets["client_secret"]["installed"]
 
 client_secret_clean = {
@@ -29,7 +30,7 @@ with open("client_secret.json", "w") as f:
     json.dump(client_secret_clean, f)
 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
-GEMINI_API_KEY = "AIzaSyA1bVAA7lBlc2Zs350--ZZ_FcTuuEdw2X4"
+GEMINI_API_KEY = "AIzaSyA1bVAA7lBlc2Zs350--ZZ_FcTuuEdw2X4"  # Replace with your actual key
 MODEL_NAME = "models/gemini-1.5-pro-latest"
 
 CATEGORIES = {
@@ -42,42 +43,41 @@ CATEGORIES = {
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# ================ AUTH ===================
+# ============ AUTHENTICATION ============
 
-@st.cache_resource(show_spinner=False)
-def authenticate_google_calendar(code=None):
+def authenticate_google_calendar():
     creds = None
-    if os.path.exists("token.pickle"):
-        with open("token.pickle", "rb") as token:
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
             creds = pickle.load(token)
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = Flow.from_client_secrets_file(
-                "client_secret.json",
-                scopes=SCOPES,
-                redirect_uri="http://localhost"
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'client_secret.json', SCOPES
             )
-
             auth_url, _ = flow.authorization_url(prompt='consent')
+            st.info("🔐 Please click the link below to authenticate:")
+            st.markdown(f"[Click here to authorize Calendar Access]({auth_url})", unsafe_allow_html=True)
+            code = st.text_input("🔑 Paste the authorization code here")
 
-            if not code:
-                return None, auth_url
+            if code:
+                try:
+                    flow.fetch_token(code=code)
+                    creds = flow.credentials
+                    with open('token.pickle', 'wb') as token:
+                        pickle.dump(creds, token)
+                except Exception as e:
+                    st.error(f"❌ Failed to fetch token: {e}")
+                    return None
+            else:
+                st.stop()
 
-            try:
-                flow.fetch_token(code=code)
-                creds = flow.credentials
-                with open("token.pickle", "wb") as token:
-                    pickle.dump(creds, token)
-            except Exception as e:
-                st.error(f"❌ Failed to authenticate: {e}")
-                return None, None
+    return build('calendar', 'v3', credentials=creds)
 
-    return build("calendar", "v3", credentials=creds), None
-
-# ================ GEMINI CATEGORIZATION ===================
+# ============ GEMINI ============
 
 def categorize_with_gemini(title, description):
     prompt = f"""
@@ -114,29 +114,14 @@ def category_to_color_id(category):
     for color_id, name in CATEGORIES.items():
         if name.lower() == category.lower():
             return color_id
-    return "11"  # Default to "Other"
+    return "11"  # Default to Other
 
-# ================ MAIN STREAMLIT UI ===================
+# ============ MAIN APP ============
 
 def main():
     st.set_page_config(page_title="Calendar Categorizer", page_icon="📅")
     st.title("📅 Calendar Categorizer")
-
     st.markdown("Categorize your Google Calendar events using AI into useful buckets.")
-
-    # Step 1: OAuth Flow
-    if "service" not in st.session_state:
-        code = st.text_input("Paste the authorization code from Google here:")
-        service, auth_url = authenticate_google_calendar(code if code else None)
-
-        if service:
-            st.session_state.service = service
-        else:
-            st.warning("👉 Click the link below, sign in to Google, and paste the resulting code above:")
-            st.code(auth_url, language="text")
-            return
-    else:
-        service = st.session_state.service
 
     start_date = st.date_input("Start Date", datetime.date.today())
     end_date = st.date_input("End Date", datetime.date.today() + datetime.timedelta(days=7))
@@ -146,6 +131,11 @@ def main():
         return
 
     if st.button("🔍 Fetch and Categorize Events"):
+        with st.spinner("🔐 Authenticating with Google Calendar..."):
+            service = authenticate_google_calendar()
+            if service is None:
+                return
+
         start_iso = datetime.datetime.combine(start_date, datetime.time.min).isoformat() + 'Z'
         end_iso = datetime.datetime.combine(end_date, datetime.time.max).isoformat() + 'Z'
 
@@ -181,13 +171,11 @@ def main():
                 color_id = category_to_color_id(category)
 
                 output_data.append({
-                    "Event ID": event_id,
                     "Title": title,
                     "Description": description,
                     "Start": event['start'].get('dateTime', event['start'].get('date')),
                     "End": event['end'].get('dateTime', event['end'].get('date')),
                     "Category": category,
-                    "Previous Color ID": event.get('colorId', 'None'),
                     "Skipped Color Update": "Yes" if is_working_location else "No"
                 })
 
@@ -198,35 +186,17 @@ def main():
                 try:
                     service.events().patch(calendarId='primary', eventId=event_id, body={"colorId": color_id}).execute()
                 except Exception:
-                    pass  # Quietly skip errors
+                    pass
 
         df = pd.DataFrame(output_data)
         st.success("✅ Events categorized successfully!")
         st.dataframe(df)
 
-        st.session_state.df = df  # Store for reverting
-
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Download as CSV", data=csv, file_name="categorized_events.csv", mime='text/csv')
 
         if skipped_working_location_count > 0:
-            st.info(f"⏩ Skipped {skipped_working_location_count} working location event(s).")
-
-    # Revert Button
-    if "df" in st.session_state and st.button("↩️ Revert Colors"):
-        with st.spinner("Reverting event colors..."):
-            df = st.session_state.df
-            for _, row in df.iterrows():
-                if row["Previous Color ID"] != "None":
-                    try:
-                        service.events().patch(
-                            calendarId='primary',
-                            eventId=row["Event ID"],
-                            body={"colorId": row["Previous Color ID"]}
-                        ).execute()
-                    except Exception:
-                        continue
-        st.success("✅ Event colors reverted!")
+            st.info(f"⏩ Skipped {skipped_working_location_count} working location event(s) from being updated in Calendar. They are still categorized in the export.")
 
 if __name__ == "__main__":
     main()
