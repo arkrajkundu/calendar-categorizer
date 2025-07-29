@@ -55,10 +55,12 @@ def authenticate_google_calendar():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                'client_secret.json', SCOPES
+            flow = InstalledAppFlow.from_client_config(
+                client_secret_clean,
+                SCOPES,
+                redirect_uri="urn:ietf:wg:oauth:2.0:oob"
             )
-            auth_url, _ = flow.authorization_url(prompt='consent')
+            auth_url, _ = flow.authorization_url(prompt='consent', include_granted_scopes='true')
             st.info("🔐 Please click the link below to authenticate:")
             st.markdown(f"[Click here to authorize Calendar Access]({auth_url})", unsafe_allow_html=True)
             code = st.text_input("🔑 Paste the authorization code here")
