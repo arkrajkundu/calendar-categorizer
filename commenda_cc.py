@@ -10,12 +10,11 @@ from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 from googleapiclient.errors import HttpError
 
-# ================== CONFIG ===================
+# ================== CONFIG ===================import json
+import streamlit as st
 
-# Access the flat key with a dot
-installed = st.secrets["client_secret.installed"]
+installed = st.secrets["client_secret"]["installed"]
 
-# Wrap it inside "installed" key and write to client_secret.json
 client_secret_clean = {
     "installed": {
         "client_id": installed["client_id"],
@@ -30,6 +29,7 @@ client_secret_clean = {
 
 with open("client_secret.json", "w") as f:
     json.dump(client_secret_clean, f)
+
 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
 GEMINI_API_KEY = "AIzaSyA1bVAA7lBlc2Zs350--ZZ_FcTuuEdw2X4"  # Replace with your actual key
