@@ -58,7 +58,7 @@ def authenticate_google_calendar(code=None):
             flow = Flow.from_client_secrets_file(
                 "client_secret.json",
                 scopes=SCOPES,
-                redirect_uri="urn:ietf:wg:oauth:2.0:oob"
+                redirect_uri="http://localhost"
             )
 
             auth_url, _ = flow.authorization_url(prompt='consent')
