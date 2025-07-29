@@ -3,14 +3,13 @@ import datetime
 import pickle
 import os
 import json
-import pandas as pd
 import google.generativeai as genai
+import pandas as pd
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
-from googleapiclient.errors import HttpError
 
-# ============ CONFIG ============
+# =================== CONFIG ===================
 
 installed = st.secrets["client_secret"]["installed"]
 
@@ -22,15 +21,12 @@ client_secret_clean = {
         "token_uri": installed["token_uri"],
         "auth_provider_x509_cert_url": installed["auth_provider_x509_cert_url"],
         "client_secret": installed["client_secret"],
-        "redirect_uris": list(installed["redirect_uris"]),
+        "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob"],
     }
 }
 
-with open("client_secret.json", "w") as f:
-    json.dump(client_secret_clean, f)
-
 SCOPES = ['https://www.googleapis.com/auth/calendar']
-GEMINI_API_KEY = "AIzaSyA1bVAA7lBlc2Zs350--ZZ_FcTuuEdw2X4"  # Replace with your actual key
+GEMINI_API_KEY = "AIzaSyA1bVAA7lBlc2Zs350--ZZ_FcTuuEdw2X4"  # Replace if needed
 MODEL_NAME = "models/gemini-1.5-pro-latest"
 
 CATEGORIES = {
@@ -43,9 +39,9 @@ CATEGORIES = {
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# ============ AUTHENTICATION ============
+# =================== AUTH ===================
 
-def authenticate_google_calendar():
+def authenticate_google_calendar_manual():
     creds = None
     if os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
@@ -60,26 +56,25 @@ def authenticate_google_calendar():
                 SCOPES,
                 redirect_uri="urn:ietf:wg:oauth:2.0:oob"
             )
-            auth_url, _ = flow.authorization_url(prompt='consent', include_granted_scopes='true')
-            st.info("🔐 Please click the link below to authenticate:")
-            st.markdown(f"[Click here to authorize Calendar Access]({auth_url})", unsafe_allow_html=True)
-            code = st.text_input("🔑 Paste the authorization code here")
-
-            if code:
+            auth_url, _ = flow.authorization_url(prompt='consent')
+            st.info("🔗 Please open the following link, sign in, and paste the code below:")
+            st.code(auth_url, language="markdown")
+            auth_code = st.text_input("🔑 Paste the authorization code here and press Enter:")
+            if auth_code:
                 try:
-                    flow.fetch_token(code=code)
+                    flow.fetch_token(code=auth_code)
                     creds = flow.credentials
                     with open('token.pickle', 'wb') as token:
                         pickle.dump(creds, token)
                 except Exception as e:
-                    st.error(f"❌ Failed to fetch token: {e}")
+                    st.error(f"Auth failed: {e}")
                     return None
             else:
                 st.stop()
 
     return build('calendar', 'v3', credentials=creds)
 
-# ============ GEMINI ============
+# =================== GEMINI ===================
 
 def categorize_with_gemini(title, description):
     prompt = f"""
@@ -103,7 +98,6 @@ Now categorize:
 Title: {title}
 Description: {description}
 """
-
     try:
         model = genai.GenerativeModel(MODEL_NAME)
         response = model.generate_content(prompt)
@@ -116,14 +110,13 @@ def category_to_color_id(category):
     for color_id, name in CATEGORIES.items():
         if name.lower() == category.lower():
             return color_id
-    return "11"  # Default to Other
+    return "11"
 
-# ============ MAIN APP ============
+# =================== MAIN ===================
 
 def main():
     st.set_page_config(page_title="Calendar Categorizer", page_icon="📅")
     st.title("📅 Calendar Categorizer")
-    st.markdown("Categorize your Google Calendar events using AI into useful buckets.")
 
     start_date = st.date_input("Start Date", datetime.date.today())
     end_date = st.date_input("End Date", datetime.date.today() + datetime.timedelta(days=7))
@@ -133,36 +126,32 @@ def main():
         return
 
     if st.button("🔍 Fetch and Categorize Events"):
-        with st.spinner("🔐 Authenticating with Google Calendar..."):
-            service = authenticate_google_calendar()
-            if service is None:
+        with st.spinner("🔐 Authenticating..."):
+            service = authenticate_google_calendar_manual()
+            if not service:
                 return
 
         start_iso = datetime.datetime.combine(start_date, datetime.time.min).isoformat() + 'Z'
         end_iso = datetime.datetime.combine(end_date, datetime.time.max).isoformat() + 'Z'
 
-        with st.spinner("📅 Fetching calendar events..."):
-            try:
-                events_result = service.events().list(
-                    calendarId='primary',
-                    timeMin=start_iso,
-                    timeMax=end_iso,
-                    singleEvents=True,
-                    orderBy='startTime'
-                ).execute()
-                events = events_result.get('items', [])
-            except HttpError as e:
-                st.error(f"❌ Google API error: {e}")
-                return
+        with st.spinner("📅 Fetching events..."):
+            events_result = service.events().list(
+                calendarId='primary',
+                timeMin=start_iso,
+                timeMax=end_iso,
+                singleEvents=True,
+                orderBy='startTime'
+            ).execute()
+            events = events_result.get('items', [])
 
         if not events:
-            st.warning("No events found in this date range.")
+            st.warning("No events found.")
             return
 
-        skipped_working_location_count = 0
         output_data = []
+        skipped_working_location_count = 0
 
-        with st.spinner("🧠 Categorizing events..."):
+        with st.spinner("🧠 Categorizing..."):
             for event in events:
                 title = event.get('summary', '').strip()
                 description = event.get('description', '').strip()
@@ -198,7 +187,7 @@ def main():
         st.download_button("📥 Download as CSV", data=csv, file_name="categorized_events.csv", mime='text/csv')
 
         if skipped_working_location_count > 0:
-            st.info(f"⏩ Skipped {skipped_working_location_count} working location event(s) from being updated in Calendar. They are still categorized in the export.")
+            st.info(f"⏩ Skipped {skipped_working_location_count} working location event(s).")
 
 if __name__ == "__main__":
     main()
