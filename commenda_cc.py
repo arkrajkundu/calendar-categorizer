@@ -21,12 +21,12 @@ client_secret_clean = {
         "token_uri": web["token_uri"],
         "auth_provider_x509_cert_url": web["auth_provider_x509_cert_url"],
         "client_secret": web["client_secret"],
-        "redirect_uris": ["urn:ietf:wg:oauth:2.0:oob"],
+        "redirect_uris": ["http://localhost:8501/"],
     }
 }
 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
-GEMINI_API_KEY = "AIzaSyA1bVAA7lBlc2Zs350--ZZ_FcTuuEdw2X4"  # Replace if needed
+GEMINI_API_KEY = "AIzaSyA1bVAA7lBlc2Zs350--ZZ_FcTuuEdw2X4"
 MODEL_NAME = "models/gemini-1.5-pro-latest"
 
 CATEGORIES = {
@@ -41,7 +41,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 # =================== AUTH ===================
 
-def authenticate_google_calendar_manual():
+def authenticate_google_calendar():
     creds = None
     if os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
@@ -53,24 +53,11 @@ def authenticate_google_calendar_manual():
         else:
             flow = InstalledAppFlow.from_client_config(
                 client_secret_clean,
-                SCOPES,
-                redirect_uri="urn:ietf:wg:oauth:2.0:oob"
+                SCOPES
             )
-            auth_url, _ = flow.authorization_url(prompt='consent')
-            st.info("🔗 Please open the following link, sign in, and paste the code below:")
-            st.code(auth_url, language="markdown")
-            auth_code = st.text_input("🔑 Paste the authorization code here and press Enter:")
-            if auth_code:
-                try:
-                    flow.fetch_token(code=auth_code)
-                    creds = flow.credentials
-                    with open('token.pickle', 'wb') as token:
-                        pickle.dump(creds, token)
-                except Exception as e:
-                    st.error(f"Auth failed: {e}")
-                    return None
-            else:
-                st.stop()
+            creds = flow.run_local_server(port=8501)
+            with open('token.pickle', 'wb') as token:
+                pickle.dump(creds, token)
 
     return build('calendar', 'v3', credentials=creds)
 
@@ -127,7 +114,7 @@ def main():
 
     if st.button("🔍 Fetch and Categorize Events"):
         with st.spinner("🔐 Authenticating..."):
-            service = authenticate_google_calendar_manual()
+            service = authenticate_google_calendar()
             if not service:
                 return
 
