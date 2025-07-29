@@ -11,8 +11,11 @@ from google.auth.transport.requests import Request
 from googleapiclient.errors import HttpError
 
 # ================== CONFIG ===================
+# Convert to plain Python dict before dumping
+client_secret_clean = json.loads(json.dumps(st.secrets["client_secret"]["installed"]))
+
 with open("client_secret.json", "w") as f:
-    json.dump(st.secrets["client_secret"]["installed"], f)
+    json.dump(client_secret_clean, f)
 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
 GEMINI_API_KEY = "AIzaSyA1bVAA7lBlc2Zs350--ZZ_FcTuuEdw2X4"  # Replace with your actual key
