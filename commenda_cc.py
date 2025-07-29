@@ -12,16 +12,18 @@ from googleapiclient.errors import HttpError
 
 # ================== CONFIG ===================
 
+# Access the flat key with a dot
 installed = st.secrets["client_secret.installed"]
 
+# Wrap it inside "installed" key and write to client_secret.json
 client_secret_clean = {
     "installed": {
-        "client_id": str(installed["client_id"]),
-        "project_id": str(installed["project_id"]),
-        "auth_uri": str(installed["auth_uri"]),
-        "token_uri": str(installed["token_uri"]),
-        "auth_provider_x509_cert_url": str(installed["auth_provider_x509_cert_url"]),
-        "client_secret": str(installed["client_secret"]),
+        "client_id": installed["client_id"],
+        "project_id": installed["project_id"],
+        "auth_uri": installed["auth_uri"],
+        "token_uri": installed["token_uri"],
+        "auth_provider_x509_cert_url": installed["auth_provider_x509_cert_url"],
+        "client_secret": installed["client_secret"],
         "redirect_uris": list(installed["redirect_uris"]),
     }
 }
