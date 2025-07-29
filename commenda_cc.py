@@ -11,9 +11,22 @@ from google.auth.transport.requests import Request
 from googleapiclient.errors import HttpError
 
 # ================== CONFIG ===================
-# Convert to plain Python dict before dumping
-client_secret_clean = json.loads(json.dumps(st.secrets["client_secret"]["installed"]))
+installed = st.secrets["client_secret"]
 
+# Manually extract the values to a clean native dict
+client_secret_clean = {
+    "installed": {
+        "client_id": str(installed.client_id),
+        "project_id": str(installed.project_id),
+        "auth_uri": str(installed.auth_uri),
+        "token_uri": str(installed.token_uri),
+        "auth_provider_x509_cert_url": str(installed.auth_provider_x509_cert_url),
+        "client_secret": str(installed.client_secret),
+        "redirect_uris": list(installed.redirect_uris),  # explicitly cast to list
+    }
+}
+
+# Now safely write to file
 with open("client_secret.json", "w") as f:
     json.dump(client_secret_clean, f)
 
