@@ -10,29 +10,10 @@ from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 from googleapiclient.errors import HttpError
 
-# ================== CONFIG ===================import json
-import streamlit as st
-
-installed = st.secrets["client_secret"]["installed"]
-
-client_secret_clean = {
-    "installed": {
-        "client_id": installed["client_id"],
-        "project_id": installed["project_id"],
-        "auth_uri": installed["auth_uri"],
-        "token_uri": installed["token_uri"],
-        "auth_provider_x509_cert_url": installed["auth_provider_x509_cert_url"],
-        "client_secret": installed["client_secret"],
-        "redirect_uris": list(installed["redirect_uris"]),
-    }
-}
-
-with open("client_secret.json", "w") as f:
-    json.dump(client_secret_clean, f)
-
+# ================== CONFIG ===================
 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
-GEMINI_API_KEY = "AIzaSyA1bVAA7lBlc2Zs350--ZZ_FcTuuEdw2X4"  # Replace with your actual key
+GEMINI_API_KEY = "AIzaSyA1bVAA7lBlc2Zs350--ZZ_FcTuuEdw2X4"
 MODEL_NAME = "models/gemini-1.5-pro-latest"
 
 CATEGORIES = {
@@ -45,10 +26,32 @@ CATEGORIES = {
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# ================ AUTH ===================
+# ================== CLIENT SECRET SETUP ===================
+
+@st.cache_resource
+def write_client_secret_file():
+    if not os.path.exists("client_secret.json"):
+        installed = st.secrets["client_secret"]["installed"]
+        data = {
+            "installed": {
+                "client_id": installed["client_id"],
+                "project_id": installed["project_id"],
+                "auth_uri": installed["auth_uri"],
+                "token_uri": installed["token_uri"],
+                "auth_provider_x509_cert_url": installed["auth_provider_x509_cert_url"],
+                "client_secret": installed["client_secret"],
+                "redirect_uris": list(installed["redirect_uris"]),
+            }
+        }
+        with open("client_secret.json", "w") as f:
+            json.dump(data, f)
+
+# ================== AUTH ===================
 
 def authenticate_google_calendar():
     creds = None
+    write_client_secret_file()
+
     if os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
             creds = pickle.load(token)
@@ -60,14 +63,17 @@ def authenticate_google_calendar():
             flow = InstalledAppFlow.from_client_secrets_file(
                 'client_secret.json', SCOPES
             )
-            creds = flow.run_local_server(port=0)
+            try:
+                creds = flow.run_local_server(port=0)
+            except:
+                st.warning("🔐 Unable to open a browser — please copy the link and paste the code manually.")
+                creds = flow.run_console()
         with open('token.pickle', 'wb') as token:
             pickle.dump(creds, token)
 
     return build('calendar', 'v3', credentials=creds)
 
-
-# ================ GEMINI CATEGORIZATION ===================
+# ================== GEMINI CATEGORIZATION ===================
 
 def categorize_with_gemini(title, description):
     prompt = f"""
@@ -100,20 +106,17 @@ Description: {description}
         st.error(f"❌ Gemini API error: {e}")
         return "Other"
 
-
 def category_to_color_id(category):
     for color_id, name in CATEGORIES.items():
         if name.lower() == category.lower():
             return color_id
-    return "11"  # Default to "Other"
+    return "11"
 
-
-# ================ MAIN STREAMLIT UI ===================
+# ================== MAIN APP ===================
 
 def main():
     st.set_page_config(page_title="Calendar Categorizer", page_icon="📅")
     st.title("📅 Calendar Categorizer")
-
     st.markdown("Categorize your Google Calendar events using AI into useful buckets.")
 
     start_date = st.date_input("Start Date", datetime.date.today())
@@ -177,7 +180,7 @@ def main():
                 try:
                     service.events().patch(calendarId='primary', eventId=event_id, body={"colorId": color_id}).execute()
                 except Exception:
-                    pass  # Quietly skip errors
+                    pass
 
         df = pd.DataFrame(output_data)
         st.success("✅ Events categorized successfully!")
