@@ -40,6 +40,7 @@ CATEGORIES = {
 genai.configure(api_key=GEMINI_API_KEY)
 
 # =================== AUTH ===================
+from google_auth_oauthlib.flow import Flow
 
 def authenticate_google_calendar():
     creds = None
@@ -51,13 +52,24 @@ def authenticate_google_calendar():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_config(
-                client_secret_clean,
-                SCOPES
-            )
-            creds = flow.run_local_server(port=8501)
-            with open('token.pickle', 'wb') as token:
-                pickle.dump(creds, token)
+            flow = Flow.from_client_config(client_secret_clean, SCOPES)
+            flow.redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
+
+            auth_url, _ = flow.authorization_url(prompt='consent')
+            st.info("🔑 [Click here to authorize access](%s)" % auth_url)
+            auth_code = st.text_input("Paste the authorization code here:")
+
+            if auth_code:
+                try:
+                    flow.fetch_token(code=auth_code)
+                    creds = flow.credentials
+                    with open('token.pickle', 'wb') as token:
+                        pickle.dump(creds, token)
+                except Exception as e:
+                    st.error(f"❌ Failed to fetch token: {e}")
+                    return None
+            else:
+                st.stop()
 
     return build('calendar', 'v3', credentials=creds)
 
