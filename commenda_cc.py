@@ -2,6 +2,7 @@ import streamlit as st
 import datetime
 import pickle
 import os
+import json
 import google.generativeai as genai
 import pandas as pd
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -10,10 +11,10 @@ from google.auth.transport.requests import Request
 from googleapiclient.errors import HttpError
 
 # ================== CONFIG ===================
-import json
 
+# Write the client secret JSON to a file for Google's API to use
 with open("client_secret.json", "w") as f:
-    f.write(st.secrets["client_secret"])
+    json.dump(st.secrets["client_secret"], f)
 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
 GEMINI_API_KEY = "AIzaSyA1bVAA7lBlc2Zs350--ZZ_FcTuuEdw2X4"  # Replace with your actual key
