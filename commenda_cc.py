@@ -12,8 +12,7 @@ from googleapiclient.errors import HttpError
 
 # ================== CONFIG ===================
 
-# Access client_secret dict safely
-installed = st.secrets["client_secret"]
+installed = st.secrets["client_secret.installed"]
 
 client_secret_clean = {
     "installed": {
@@ -27,7 +26,6 @@ client_secret_clean = {
     }
 }
 
-# Save it
 with open("client_secret.json", "w") as f:
     json.dump(client_secret_clean, f)
 
